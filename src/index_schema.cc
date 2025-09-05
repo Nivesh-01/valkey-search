@@ -75,7 +75,6 @@ IndexSchema::BackfillJob::BackfillJob(ValkeyModuleCtx *ctx,
 absl::StatusOr<std::shared_ptr<indexes::IndexBase>> IndexFactory(
     ValkeyModuleCtx *ctx, IndexSchema *index_schema,
     const data_model::Attribute &attribute,
-    const data_model::IndexSchema *index_schema_proto,
     std::optional<SupplementalContentChunkIter> iter) {
   const auto &index = attribute.index();
   switch (index.index_type_case()) {
@@ -180,8 +179,7 @@ absl::StatusOr<std::shared_ptr<IndexSchema>> IndexSchema::Create(
   if (!skip_attributes) {
     for (const auto &attribute : index_schema_proto.attributes()) {
       VMSDK_ASSIGN_OR_RETURN(std::shared_ptr<indexes::IndexBase> index,
-                             IndexFactory(ctx, res.get(), attribute,
-                                          &index_schema_proto, std::nullopt));
+                             IndexFactory(ctx, res.get(), attribute, std::nullopt));
       VMSDK_RETURN_IF_ERROR(
           res->AddIndex(attribute.alias(), attribute.identifier(), index));
     }
@@ -742,20 +740,11 @@ bool IndexSchema::HasTextFields() const {
 }
 
 void IndexSchema::RespondWithInfo(ValkeyModuleCtx *ctx) const {
-  int arrSize = 28;
+  int arrSize = 78;
   
   // Calculate additional array size for text-related fields only if text fields exist
   if (HasTextFields()) {
-    if (!punctuation_.empty()) {
-      arrSize += 2; // punctuation key-value pair
-    }
-    if (!stop_words_.empty()) {
-      arrSize += 2; // stop_words key-value pair
-    }
-    arrSize += 2; // language key-value pair (always shown for text fields)
-    if (with_offsets_) {
-      arrSize += 2; // with_offsets flag (field name only)
-    }
+    arrSize += 6;
   }
 
   ValkeyModule_ReplyWithArray(ctx, arrSize);
@@ -870,17 +859,18 @@ void IndexSchema::RespondWithInfo(ValkeyModuleCtx *ctx) const {
   ValkeyModule_ReplyWithSimpleString(ctx, GetStateForInfo().data());
   
   // Add text-related schema fields
-  if (!punctuation_.empty()) {
+  if (HasTextFields()) {
     ValkeyModule_ReplyWithSimpleString(ctx, "punctuation");
     ValkeyModule_ReplyWithSimpleString(ctx, punctuation_.c_str());
-  }
-  
-  if (!stop_words_.empty()) {
+
     ValkeyModule_ReplyWithSimpleString(ctx, "stop_words");
     ValkeyModule_ReplyWithArray(ctx, stop_words_.size());
     for (const auto &stop_word : stop_words_) {
       ValkeyModule_ReplyWithSimpleString(ctx, stop_word.c_str());
     }
+
+    ValkeyModule_ReplyWithSimpleString(ctx, "with_offsets");
+    ValkeyModule_ReplyWithSimpleString(ctx, with_offsets_ ? "1" : "0");
   }
   
   if (language_ != data_model::LANGUAGE_UNSPECIFIED) {
@@ -898,9 +888,7 @@ void IndexSchema::RespondWithInfo(ValkeyModuleCtx *ctx) const {
     ValkeyModule_ReplyWithSimpleString(ctx, "english");
   }
   
-  if (with_offsets_) {
-    ValkeyModule_ReplyWithSimpleString(ctx, "with_offsets");
-  }
+
 }
 
 bool IsVectorIndex(std::shared_ptr<indexes::IndexBase> index) {
@@ -1030,7 +1018,6 @@ absl::StatusOr<std::shared_ptr<IndexSchema>> IndexSchema::LoadFromRDB(
           supplemental_content->index_content_header().attribute();
       VMSDK_ASSIGN_OR_RETURN(std::shared_ptr<indexes::IndexBase> index,
                              IndexFactory(ctx, index_schema.get(), attribute,
-                                          index_schema_proto.get(),
                                           supplemental_iter.IterateChunks()));
       VMSDK_RETURN_IF_ERROR(index_schema->AddIndex(
           attribute.alias(), attribute.identifier(), index));
