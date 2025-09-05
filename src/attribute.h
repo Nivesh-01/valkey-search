@@ -36,7 +36,7 @@ class Attribute {
     return attribute_proto;
   }
   inline int RespondWithInfo(ValkeyModuleCtx* ctx) const {
-    ValkeyModule_ReplyWithArray(ctx, VALKEYMODULE_POSTPONED_LEN);
+    ValkeyModule_ReplyWithArray(ctx, VALKEYMODULE_POSTPONED_ARRAY_LEN);
     ValkeyModule_ReplyWithSimpleString(ctx, "identifier");
     ValkeyModule_ReplyWithSimpleString(ctx, GetIdentifier().c_str());
     ValkeyModule_ReplyWithSimpleString(ctx, "attribute");
