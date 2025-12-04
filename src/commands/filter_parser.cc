@@ -433,8 +433,7 @@ inline std::unique_ptr<query::Predicate> MayNegatePredicate(
 absl::StatusOr<std::unique_ptr<query::Predicate>> FilterParser::WrapPredicate(
     std::unique_ptr<query::Predicate> prev_predicate,
     std::unique_ptr<query::Predicate> predicate, bool& negate,
-    query::LogicalOperator logical_operator, bool no_prev_grp,
-    bool not_rightmost_bracket) {
+    query::LogicalOperator logical_operator, bool no_prev_grp) {
   auto new_predicate = MayNegatePredicate(std::move(predicate), negate);
   if (!prev_predicate) {
     return new_predicate;
@@ -457,7 +456,6 @@ absl::StatusOr<std::unique_ptr<query::Predicate>> FilterParser::WrapPredicate(
   // Flatten OR nodes when not_rightmost_bracket is true at the same bracket
   // level
   if (logical_operator == query::LogicalOperator::kOr &&
-      not_rightmost_bracket &&
       new_predicate->GetType() == query::PredicateType::kComposedOr) {
     std::vector<std::unique_ptr<query::Predicate>> new_children;
     if (prev_predicate) {
@@ -857,7 +855,7 @@ absl::StatusOr<FilterParser::ParseResult> FilterParser::ParseExpression(
   ParseResult result;
   // Keeps track of the rightmost bracket of a level. Used to determine the
   // WrapPredicate fn's OR logic
-  result.not_rightmost_bracket = true;
+  // result.not_rightmost_bracket = true;
   // Keeps track if first token is a bracket. Used to determine the
   // WrapPredicate fn's AND logic
   result.prev_predicate = nullptr;
@@ -894,12 +892,12 @@ absl::StatusOr<FilterParser::ParseResult> FilterParser::ParseExpression(
       VMSDK_ASSIGN_OR_RETURN(
           result.prev_predicate,
           WrapPredicate(std::move(result.prev_predicate), std::move(predicate),
-                        negate, query::LogicalOperator::kAnd, false,
-                        result.not_rightmost_bracket));
+                        negate, query::LogicalOperator::kAnd, false/*,
+                        result.not_rightmost_bracket*/));
       // Closing bracket signifies one group is done which could be the
       // rightmost bracket. We set it to false as a flag for its potential for
       // the same.
-      result.not_rightmost_bracket = false;
+      // result.not_rightmost_bracket = false;
     } else if (Match('|')) {
       if (negate) {
         return UnexpectedChar(expression_, pos_ - 1);
@@ -916,12 +914,12 @@ absl::StatusOr<FilterParser::ParseResult> FilterParser::ParseExpression(
       VMSDK_ASSIGN_OR_RETURN(
           result.prev_predicate,
           WrapPredicate(std::move(result.prev_predicate), std::move(predicate),
-                        negate, query::LogicalOperator::kOr, no_prev_grp,
-                        sub_result.not_rightmost_bracket));
+                        negate, query::LogicalOperator::kOr, no_prev_grp
+                        /*sub_result.not_rightmost_bracket*/));
       no_prev_grp = false;
       // Resetting it to true since for that level we have got our rightmost
       // bracket and we do not want stale results to propagate.
-      result.not_rightmost_bracket = true;
+      // result.not_rightmost_bracket = true;
     } else {
       std::optional<std::string> field_name;
       bool non_text = false;
@@ -948,11 +946,11 @@ absl::StatusOr<FilterParser::ParseResult> FilterParser::ParseExpression(
       VMSDK_ASSIGN_OR_RETURN(
           result.prev_predicate,
           WrapPredicate(std::move(result.prev_predicate), std::move(predicate),
-                        negate, query::LogicalOperator::kAnd, no_prev_grp,
-                        result.not_rightmost_bracket));
+                        negate, query::LogicalOperator::kAnd, no_prev_grp
+                        /*result.not_rightmost_bracket*/));
       // After the above wrap predicate there will always be a previous
       // predicate. Hence we set it to false.
-      result.not_rightmost_bracket = false;
+      // result.not_rightmost_bracket = false;
       no_prev_grp = false;
     }
     SkipWhitespace();
