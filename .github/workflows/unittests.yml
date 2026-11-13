@@ -65,10 +65,10 @@ jobs:
           -e CCACHE_MAXSIZE=1G \
           --user "ubuntu:ubuntu" \
           presubmit-image \
-          sudo -E ci/build_ubuntu.sh --run-tests --unittest-output=/workspace/test-results
+          sudo -E ci/build_ubuntu.sh --no-build --configure
 
     - name: Save ICU
-      if: always() && github.event_name == 'push' && steps.icu.outputs.cache-hit != 'true'
+      if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && steps.icu.outputs.cache-hit != 'true'
       uses: ./.github/actions/icu-cache
       with:
         build-dir: .build-release

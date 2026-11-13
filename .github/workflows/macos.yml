@@ -43,10 +43,13 @@ jobs:
         build-dir: .build-release
 
     - name: Build Code
-      run: ./build.sh
+      run: |
+        eval "$(sed -n '/^function build_icu_if_needed()/,/^}/p' build.sh)"
+        num_proc() { sysctl -n hw.ncpu; }
+        ROOT_DIR=$PWD BUILD_DIR=$PWD/.build-release build_icu_if_needed
 
     - name: Save ICU
-      if: always() && github.event_name == 'push' && steps.icu.outputs.cache-hit != 'true'
+      if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && steps.icu.outputs.cache-hit != 'true'
       uses: ./.github/actions/icu-cache
       with:
         build-dir: .build-release
